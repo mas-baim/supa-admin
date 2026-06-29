@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Admin - Baim Photo Gallery</title>
+  <title>Admin - Mas Baim Gallery</title>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -114,16 +114,23 @@
       flex-wrap: wrap;
       gap: 12px;
     }
+    .admin-title-area {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
     .admin-header h2 {
       font-family: 'Google Sans', sans-serif;
       color: var(--text-primary);
+    }
+    .user-email-sub {
+      font-size: 13px;
+      color: var(--text-secondary);
     }
     .user-info {
       display: flex;
       align-items: center;
       gap: 12px;
-      font-size: 13px;
-      color: var(--text-secondary);
     }
     .btn-logout {
       padding: 6px 14px;
@@ -221,30 +228,40 @@
     .drop-zone-text { font-size: 14px; color: var(--text-secondary); }
     .drop-zone-text strong { color: var(--blue); }
 
-    /* MULTIPLE PREVIEW CONTAINER */
-    .preview-container { margin-top: 12px; display: none; }
-    .preview-container.active { display: flex; flex-wrap: wrap; gap: 10px; }
+    /* MULTIPLE PREVIEW CONTAINER (THUMBNAIL SQUARE AREA) */
+    .preview-container { 
+      margin-top: 16px; 
+      display: none; 
+    }
+    .preview-container.active { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); 
+      gap: 12px; 
+    }
     .preview-img {
-      max-width: 150px;
-      max-height: 120px;
+      width: 100%;
+      height: 100px;
       border-radius: 8px;
       object-fit: cover;
-      border: 2px solid var(--border);
+      border: 2px solid var(--blue);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
 
     .upload-footer {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 8px;
     }
     .btn-upload {
-      padding: 12px 24px;
+      padding: 12px 32px;
       background: var(--green);
       color: white;
       border: none;
       border-radius: 8px;
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 500;
       cursor: pointer;
       transition: opacity 0.2s;
@@ -262,11 +279,14 @@
     }
 
     .upload-status {
-      margin-top: 12px;
+      margin-top: 4px;
       font-size: 13px;
-      padding: 10px;
+      padding: 10px 24px;
       border-radius: 8px;
       display: none;
+      text-align: center;
+      width: 100%;
+      max-width: 400px;
     }
     .upload-status.success { display: block; background: #e6f4ea; color: #137333; }
     .upload-status.error { display: block; background: #fce8e6; color: #c5221f; }
@@ -388,6 +408,8 @@
       .admin-window { border-radius: 0; }
       .form-row { grid-template-columns: 1fr; }
       .photo-grid { grid-template-columns: repeat(2, 1fr); }
+      .preview-container.active { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
+      .preview-img { height: 80px; }
     }
   </style>
 </head>
@@ -413,18 +435,18 @@
 
   <div class="admin-panel" id="adminPanel">
     <div class="admin-header">
-      <h2>📸 Kelola Foto</h2>
+      <div class="admin-title-area">
+        <h2>📸 Upload Foto</h2>
+        <span id="userEmail" class="user-email-sub"></span>
+      </div>
       <div class="user-info">
-        <span id="userEmail"></span>
         <button class="btn-logout" onclick="handleLogout()">Logout</button>
       </div>
     </div>
 
     <div class="upload-section">
-      <h3>➕ Upload Foto Baru</h3>
       <div class="upload-form">
         <div class="form-group">
-          <label>Gambar (Bisa pilih banyak file sekaligus)</label>
           <div class="drop-zone" id="dropZone">
             <input type="file" id="fileInput" accept="image/*" multiple />
             <div class="drop-zone-icon">📁</div>
@@ -450,9 +472,8 @@
           <button class="btn-upload" id="btnUpload" onclick="handleUpload()">
             📤 Upload Foto
           </button>
-          <span class="upload-hint">💡 Judul otomatis diambil dari nama file & otomatis di-rename saat disimpan</span>
+          <div class="upload-status" id="uploadStatus"></div>
         </div>
-        <div class="upload-status" id="uploadStatus"></div>
       </div>
     </div>
 
@@ -555,7 +576,6 @@
     document.getElementById('adminPanel').classList.add('active');
     document.getElementById('userEmail').textContent = currentUser.email;
     
-    // Tunggu inisialisasi selector/filter selesai agar nilai default bulan ini diterapkan
     await initCategorySelectors();
     loadAdminPhotos();
   }
@@ -573,11 +593,10 @@
   // ═══════════════════════════════════════════
   async function initCategorySelectors() {
     buildYearDropdown();
-    updateMonthOptions();   // Set default bulan = bulan sekarang pada form upload
-    await buildFilterDropdown();  // Tunggu hingga filter selesai memuat data dari DB
+    updateMonthOptions();   
+    await buildFilterDropdown();  
   }
 
-  // Bangun dropdown tahun (dinamis, default = tahun sekarang)
   function buildYearDropdown() {
     const yearSelect = document.getElementById('photoYear');
     yearSelect.innerHTML = '';
@@ -590,7 +609,6 @@
     });
   }
 
-  // Bangun dropdown bulan (default = bulan sekarang)
   function updateMonthOptions() {
     const monthSelect = document.getElementById('photoMonth');
     monthSelect.innerHTML = '';
@@ -603,43 +621,37 @@
     });
   }
 
-  // Bangun dropdown filter secara dinamis HANYA dari data yang ada di database
   async function buildFilterDropdown() {
     const filterSelect = document.getElementById('filterCategory');
-    const savedValue = filterSelect.value; // simpan nilai lama jika ada perubahan dinamis
+    const savedValue = filterSelect.value;
     filterSelect.innerHTML = '<option value="">⏳ Memuat filter...</option>';
 
     try {
       const { data, error } = await sb.from('photos').select('category');
       if (error) throw error;
 
-      // Filter data unik, bersihkan nilai kosong, urutkan terbaru
       const uniqueCategories = [...new Set(data.map(item => item.category))]
         .filter(Boolean)
         .sort((a, b) => b.localeCompare(a));
 
       filterSelect.innerHTML = '';
 
-      // 1. Opsi Default "Periode Ini"
       const optCurrent = document.createElement('option');
       optCurrent.value = CURRENT_CATEGORY;
       const currentMonthLabel = MONTHS.find(m => m.key === CURRENT_MONTH)?.name || CURRENT_MONTH;
       optCurrent.textContent = `📍 ${currentMonthLabel} ${CURRENT_YEAR} (Periode Ini)`;
       filterSelect.appendChild(optCurrent);
 
-      // 2. Garis pemisah visual
       const optDivider = document.createElement('option');
       optDivider.disabled = true;
       optDivider.textContent = '──────────────────';
       filterSelect.appendChild(optDivider);
 
-      // 3. Opsi "Semua Foto"
       const optAll = document.createElement('option');
       optAll.value = '';
       optAll.textContent = '🗂 Semua Foto';
       filterSelect.appendChild(optAll);
 
-      // 4. Bangun kelompok tahun (optgroup) yang hanya ada fotonya saja
       const yearsWithData = [...new Set(uniqueCategories.map(cat => cat.split('-')[0]))];
 
       yearsWithData.forEach(year => {
@@ -666,7 +678,6 @@
         filterSelect.appendChild(optgroup);
       });
 
-      // Kembalikan ke pilihan sebelumnya jika ada, atau set default ke Bulan Berjalan
       if (savedValue && [...filterSelect.options].some(o => o.value === savedValue)) {
         filterSelect.value = savedValue;
       } else {
@@ -752,15 +763,19 @@
       showStatus(`Mengupload foto ke-${idx + 1} dari ${selectedFiles.length}...`, 'loading');
 
       try {
-        // Logika Auto Rename Berbasis Indeks Loop
         const ext = originalName.split('.').pop();
         const prefix = `${year}${month}`;
-        const rand = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+        const nowUpload = new Date();
+        const uploadDay = String(nowUpload.getDate()).padStart(2, '0');
+        const uploadHours = String(nowUpload.getHours()).padStart(2, '0');
+        const uploadMinutes = String(nowUpload.getMinutes()).padStart(2, '0');
+        const uploadSeconds = String(nowUpload.getSeconds()).padStart(2, '0');
         
-        const fileName = `${prefix}_${idx + 1}_${rand}.${ext}`;
+        const timeStamp = `${uploadHours}${uploadMinutes}${uploadSeconds}`;
+        const fileName = `${prefix}_${uploadDay}_${timeStamp}_${idx + 1}.${ext}`;
         const filePath = `${category}/${fileName}`;
 
-        // 1. Upload Fisik Gambar ke Supabase Storage
+        // 1. Upload ke Storage
         const { error: storageError } = await sb.storage
           .from('photos')
           .upload(filePath, file, {
@@ -775,7 +790,7 @@
           .from('photos')
           .getPublicUrl(filePath);
 
-        // 3. Simpan Metadata ke Database
+        // 3. Simpan Metadata ke DB
         const { error: dbError } = await sb
           .from('photos')
           .insert({
@@ -798,18 +813,17 @@
     }
 
     if (errorCount === 0) {
-      showStatus(`✅ Berhasil mengupload ${successCount} foto sekaligus!`, 'success');
+      showStatus(`✅ Berhasil mengupload ${successCount} foto!`, 'success');
     } else {
       showStatus(`⚠️ Selesai: ${successCount} sukses, ${errorCount} gagal.`, 'error');
     }
 
-    // Reset Form Upload
+    // Reset Form
     selectedFiles = [];
     fileInput.value = '';
     previewContainer.innerHTML = '';
     previewContainer.classList.remove('active');
 
-    // Sinkronisasi Filter & Tampilan Foto Terbaru
     await buildFilterDropdown();
     loadAdminPhotos();
 
@@ -925,7 +939,6 @@
         await sb.storage.from('photos').remove([filePath]);
       }
 
-      // Perbarui struktur filter dan muat ulang foto setelah dihapus
       await buildFilterDropdown();
       loadAdminPhotos();
     } catch (err) {
@@ -933,9 +946,6 @@
     }
   }
 
-  // ═══════════════════════════════════════════
-  // INIT PROSES
-  // ═══════════════════════════════════════════
   checkAuth();
 </script>
 </body>
